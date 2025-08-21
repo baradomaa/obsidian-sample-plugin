@@ -48,54 +48,6 @@ const dictionary: Record<string, string> = {
 	embarass: "embarrass",
 	neccessary: "necessary",
 	grammer: "grammar",
-	miniscule: "minuscule",
-	ocassion: "occasion",
-	pharoah: "pharaoh",
-	publically: "publicly",
-	independant: "independent",
-	judgement: "judgment",
-	congradulations: "congratulations",
-	supercede: "supersede",
-	irresistable: "irresistible",
-	maintanence: "maintenance",
-	privelege: "privilege",
-	begining: "beginning",
-	bussiness: "business",
-	wierd: "weird",
-	truely: "truly",
-	alot: "a lot",
-	alltogether: "altogether",
-	untill: "until",
-	liason: "liaison",
-	adress: "address",
-	calender: "calendar",
-	existance: "existence",
-	foriegn: "foreign",
-	goverment: "government",
-	harrass: "harass",
-	hierachy: "hierarchy",
-	mischevious: "mischievous",
-	noticable: "noticeable",
-	perseverence: "perseverance",
-	preceed: "precede",
-	succesfully: "successfully",
-	tommorow: "tomorrow",
-	unforseen: "unforeseen",
-	vaccum: "vacuum",
-	writen: "written",
-	curiousity: "curiosity",
-	familar: "familiar",
-	guage: "gauge",
-	heirarchy: "hierarchy",
-	knowlege: "knowledge",
-	millenium: "millennium",
-	possesion: "possession",
-	reccommend: "recommend",
-	ridiculous: "ridiculous",
-	sissors: "scissors",
-	streighth: "strength",
-	thourough: "thorough",
-	tounge: "tongue"
 	// ... (you can expand with more entries)
 };
 
@@ -239,40 +191,72 @@ export default class AutoCorrectPlugin extends Plugin {
 
 	// === Live spelling autocorrect (on word completion) ===
 	applyLiveAutocorrect(editor: Editor) {
-		editor.on("change", (instance, change) => {
-			if (!change.origin || change.origin === "setValue") return;
+		// Register an event that fires whenever the editor content changes
+    this.registerEvent(
+      this.app.workspace.on("editor-change", (editor: Editor) => {
+        if (!editor) return;
 
-			const lastChar = change.text.join("").slice(-1);
-			const triggerChars = [" ", ".", ",", "!", "?", "\n"];
-			if (!triggerChars.includes(lastChar)) return;
+        const cursor = editor.getCursor();
+        const line = editor.getLine(cursor.line);
 
-			const cursor = editor.getCursor();
-			const line = editor.getLine(cursor.line);
-			const words = line.slice(0, cursor.ch).split(/\b/);
-			const lastWord = words[words.length - 2]; // before punctuation
+        if (!line || line.length === 0) return;
 
-			if (!lastWord) return;
+        const lastChar = line.charAt(cursor.ch - 1);
 
-			const start = { line: cursor.line, ch: line.lastIndexOf(lastWord) };
-			const end = { line: cursor.line, ch: start.ch + lastWord.length };
+        // Run autocorrect when space or punctuation is typed
+        if (lastChar === " " || [".", "!", "?"].includes(lastChar)) {
+          const corrected = this.autoCorrectLine(line);
+          if (corrected !== line) {
+            editor.setLine(cursor.line, corrected);
+          }
+        }
 
-			const corrected = autocorrectText(lastWord);
-			if (corrected !== lastWord) {
-				editor.replaceRange(corrected, start, end);
-			}
+        // Capitalize next word after punctuation
+        if ([".", "!", "?"].includes(lastChar)) {
+          const nextCharIndex = cursor.ch;
+          const nextChar = line[nextCharIndex];
+          if (nextChar && /[a-z]/.test(nextChar)) {
+            editor.replaceRange(
+              nextChar.toUpperCase(),
+              { line: cursor.line, ch: nextCharIndex },
+              { line: cursor.line, ch: nextCharIndex + 1 }
+            );
+          }
+        }
+      })
+    );
+  }
 
-			// Capitalize next word after punctuation
-			if ([".", "!", "?"].includes(lastChar)) {
-				const nextCharIndex = cursor.ch;
-				const nextChar = line[nextCharIndex];
-				if (nextChar && /[a-z]/.test(nextChar)) {
-					editor.replaceRange(
-						nextChar.toUpperCase(),
-						{ line: cursor.line, ch: nextCharIndex },
-						{ line: cursor.line, ch: nextCharIndex + 1 }
-					);
-				}
-			}
-		});
-	}
+  onunload() {
+    console.log("Unloading AutoCorrect Plugin");
+  }
+    private autoCorrectLine(line: string): string {
+    // Simple spelling autocorrect dictionary
+    const corrections: Record<string, string> = {
+      teh: "the",
+      recieve: "receive",
+      adress: "address",
+      occurence: "occurrence",
+      seperate: "separate",
+    };
+
+    // Split line into words and autocorrect
+    const words = line.split(/\b/);
+    const correctedWords = words.map((word) => {
+      const lower = word.toLowerCase();
+      if (corrections[lower]) {
+        // Preserve capitalization if word was capitalized
+        if (word[0] === word[0].toUpperCase()) {
+          const fixed = corrections[lower];
+          return fixed.charAt(0).toUpperCase() + fixed.slice(1);
+        }
+        return corrections[lower];
+      }
+      return word;
+    });
+
+    return correctedWords.join("");
+  }
+
 }
+
